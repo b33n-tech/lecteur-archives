@@ -7,7 +7,7 @@ from PIL import Image
 
 
 st.set_page_config(
-    page_title="Lecteur JPG",
+    page_title="Lecteur archives",
     layout="wide"
 )
 
@@ -15,12 +15,14 @@ st.title("📖 Lecteur de pages numérisées")
 
 
 zip_file = st.file_uploader(
-    "Upload un fichier ZIP contenant les images",
+    "Upload ZIP contenant les images",
     type=["zip"]
 )
 
 
-# ---------- trouver images ----------
+# -----------------------------
+# trouver images
+# -----------------------------
 
 def find_images(folder):
 
@@ -31,7 +33,6 @@ def find_images(folder):
             if f.lower().endswith((".jpg", ".jpeg", ".png")):
                 imgs.append(os.path.join(root, f))
 
-    # tri numérique (important)
     def extract_number(path):
         name = os.path.basename(path)
         nums = re.findall(r"\d+", name)
@@ -42,7 +43,9 @@ def find_images(folder):
     return imgs
 
 
-# ---------- extraction zip ----------
+# -----------------------------
+# charger zip
+# -----------------------------
 
 if zip_file is not None:
 
@@ -56,45 +59,84 @@ if zip_file is not None:
         files = find_images(tmpdir)
 
         if len(files) == 0:
-            st.error("Aucune image trouvée dans le zip")
+            st.error("Aucune image trouvée")
             st.stop()
 
         st.session_state.images = files
         st.session_state.index = 0
+        st.session_state.zoom = 1.0
 
 
-# ---------- affichage ----------
+# -----------------------------
+# affichage lecteur
+# -----------------------------
 
 if "images" in st.session_state:
 
     images = st.session_state.images
     i = st.session_state.index
 
-    col1, col2, col3 = st.columns([1, 6, 1])
+    total = len(images)
+
+    # ---------- navigation ----------
+
+    col1, col2, col3, col4, col5 = st.columns([1,1,4,1,1])
 
     with col1:
-        if st.button("⬅️"):
+        if st.button("⏮"):
+            st.session_state.index = 0
+
+    with col2:
+        if st.button("⬅"):
             if i > 0:
                 st.session_state.index -= 1
 
-    with col3:
-        if st.button("➡️"):
-            if i < len(images) - 1:
+    with col4:
+        if st.button("➡"):
+            if i < total - 1:
                 st.session_state.index += 1
+
+    with col5:
+        if st.button("⏭"):
+            st.session_state.index = total - 1
+
+    # ---------- slider ----------
+
+    st.session_state.index = st.slider(
+        "Page",
+        0,
+        total - 1,
+        st.session_state.index
+    )
+
+    # ---------- zoom ----------
+
+    st.session_state.zoom = st.slider(
+        "Zoom",
+        0.5,
+        3.0,
+        st.session_state.zoom,
+        0.1
+    )
 
     i = st.session_state.index
 
-    st.write(f"Page {i+1} / {len(images)}")
+    st.write(f"Page {i+1} / {total}")
 
-    try:
+    img_path = images[i]
 
-        img_path = images[i]
+    img = Image.open(img_path)
 
-        img = Image.open(img_path)
+    # zoom
+    if st.session_state.zoom != 1:
 
-        st.image(img, use_container_width=True)
+        w, h = img.size
 
-    except Exception as e:
+        img = img.resize(
+            (
+                int(w * st.session_state.zoom),
+                int(h * st.session_state.zoom)
+            )
+        )
 
-        st.error("Erreur chargement image")
-        st.write(e)
+    st.image(img)
