@@ -14,6 +14,24 @@ st.set_page_config(
 st.title("📖 Lecteur de pages numérisées")
 
 
+# -----------------------------
+# INIT SESSION STATE (IMPORTANT)
+# -----------------------------
+
+if "images" not in st.session_state:
+    st.session_state.images = []
+
+if "index" not in st.session_state:
+    st.session_state.index = 0
+
+if "zoom" not in st.session_state:
+    st.session_state.zoom = 1.0
+
+
+# -----------------------------
+# uploader
+# -----------------------------
+
 zip_file = st.file_uploader(
     "Upload ZIP contenant les images",
     type=["zip"]
@@ -47,38 +65,34 @@ def find_images(folder):
 # charger zip
 # -----------------------------
 
-if zip_file is not None:
+if zip_file is not None and len(st.session_state.images) == 0:
 
-    if "images" not in st.session_state:
+    tmpdir = tempfile.mkdtemp()
 
-        tmpdir = tempfile.mkdtemp()
+    with zipfile.ZipFile(zip_file, "r") as z:
+        z.extractall(tmpdir)
 
-        with zipfile.ZipFile(zip_file, "r") as z:
-            z.extractall(tmpdir)
+    files = find_images(tmpdir)
 
-        files = find_images(tmpdir)
+    if len(files) == 0:
+        st.error("Aucune image trouvée")
+        st.stop()
 
-        if len(files) == 0:
-            st.error("Aucune image trouvée")
-            st.stop()
-
-        st.session_state.images = files
-        st.session_state.index = 0
-        st.session_state.zoom = 1.0
+    st.session_state.images = files
+    st.session_state.index = 0
 
 
 # -----------------------------
-# affichage lecteur
+# lecteur
 # -----------------------------
 
-if "images" in st.session_state:
+if len(st.session_state.images) > 0:
 
     images = st.session_state.images
+    total = len(images)
     i = st.session_state.index
 
-    total = len(images)
-
-    # ---------- navigation ----------
+    # navigation
 
     col1, col2, col3, col4, col5 = st.columns([1,1,4,1,1])
 
@@ -100,7 +114,8 @@ if "images" in st.session_state:
         if st.button("⏭"):
             st.session_state.index = total - 1
 
-    # ---------- slider ----------
+
+    # slider page
 
     st.session_state.index = st.slider(
         "Page",
@@ -109,15 +124,17 @@ if "images" in st.session_state:
         st.session_state.index
     )
 
-    # ---------- zoom ----------
+
+    # zoom
 
     st.session_state.zoom = st.slider(
         "Zoom",
         0.5,
         3.0,
-        st.session_state.zoom,
+        float(st.session_state.zoom),
         0.1
     )
+
 
     i = st.session_state.index
 
@@ -127,7 +144,6 @@ if "images" in st.session_state:
 
     img = Image.open(img_path)
 
-    # zoom
     if st.session_state.zoom != 1:
 
         w, h = img.size
