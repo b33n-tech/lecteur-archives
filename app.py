@@ -2,21 +2,49 @@ import streamlit as st
 import zipfile
 import tempfile
 import os
+import re
 from PIL import Image
 
+
 st.set_page_config(
-    page_title="Lecteur d'images",
+    page_title="Lecteur JPG",
     layout="wide"
 )
 
-st.title("📖 Lecteur de pages JPG")
+st.title("📖 Lecteur de pages numérisées")
+
 
 zip_file = st.file_uploader(
-    "Upload zip contenant les pages JPG",
+    "Upload un fichier ZIP contenant les images",
     type=["zip"]
 )
 
-if zip_file:
+
+# ---------- trouver images ----------
+
+def find_images(folder):
+
+    imgs = []
+
+    for root, _, files in os.walk(folder):
+        for f in files:
+            if f.lower().endswith((".jpg", ".jpeg", ".png")):
+                imgs.append(os.path.join(root, f))
+
+    # tri numérique (important)
+    def extract_number(path):
+        name = os.path.basename(path)
+        nums = re.findall(r"\d+", name)
+        return int(nums[-1]) if nums else 0
+
+    imgs.sort(key=extract_number)
+
+    return imgs
+
+
+# ---------- extraction zip ----------
+
+if zip_file is not None:
 
     if "images" not in st.session_state:
 
@@ -25,23 +53,24 @@ if zip_file:
         with zipfile.ZipFile(zip_file, "r") as z:
             z.extractall(tmpdir)
 
-        files = []
+        files = find_images(tmpdir)
 
-        for f in os.listdir(tmpdir):
-            if f.lower().endswith(".jpg") or f.lower().endswith(".jpeg"):
-                files.append(f)
-
-        files.sort()
+        if len(files) == 0:
+            st.error("Aucune image trouvée dans le zip")
+            st.stop()
 
         st.session_state.images = files
-        st.session_state.dir = tmpdir
         st.session_state.index = 0
 
+
+# ---------- affichage ----------
+
+if "images" in st.session_state:
+
     images = st.session_state.images
-    folder = st.session_state.dir
     i = st.session_state.index
 
-    col1, col2, col3 = st.columns([1,6,1])
+    col1, col2, col3 = st.columns([1, 6, 1])
 
     with col1:
         if st.button("⬅️"):
@@ -57,8 +86,15 @@ if zip_file:
 
     st.write(f"Page {i+1} / {len(images)}")
 
-    img_path = os.path.join(folder, images[i])
+    try:
 
-    img = Image.open(img_path)
+        img_path = images[i]
 
-    st.image(img, use_container_width=True)
+        img = Image.open(img_path)
+
+        st.image(img, use_container_width=True)
+
+    except Exception as e:
+
+        st.error("Erreur chargement image")
+        st.write(e)
